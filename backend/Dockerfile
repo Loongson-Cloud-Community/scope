@@ -1,10 +1,17 @@
-FROM golang:1.13.9
+FROM cr.loongnix.cn/library/golang:1.15
 ENV SCOPE_SKIP_UI_ASSETS true
+
+RUN wget http://pkg.loongnix.cn/loongnix/pool/main/d/debian-archive-keyring//debian-archive-keyring_2019.1.lnd.2_all.deb && \
+    dpkg -i debian-archive-keyring_2019.1.lnd.2_all.deb && \
+    apt-key add /usr/share/keyrings/debian-archive-buster-loongarch64-stable.gpg
+
 RUN set -eux; \
    export arch_val="$(dpkg --print-architecture)"; \
    apt-get update && \
    if [ "$arch_val" = "amd64" ]; then \
      apt-get install -y libpcap-dev time file shellcheck git gcc-arm-linux-gnueabihf curl build-essential python-pip; \
+   elif [ "$arch_val" = "loongarch64" ]; then \
+     apt-get install -y libpcap-dev time file git curl build-essential python-pip docker-ce; \
    else \
      apt-get install -y libpcap-dev time file shellcheck git curl build-essential python-pip; \
    fi; \
@@ -15,10 +22,10 @@ RUN go clean -i net && \
 	go install -tags netgo std && \
    export arch_val="$(dpkg --print-architecture)"; \
    if [ "$arch_val" != "ppc64el" ]; then \
-	go install -race -tags netgo std; \
+	go install -tags netgo std; \
    fi; \
-    go get -tags netgo \
-		github.com/fzipp/gocyclo \
+   export GO111MODULE=on && go get -tags netgo \
+		github.com/fzipp/gocyclo@ffe36aa317dcbb421a536de071660261136174dd \
 		golang.org/x/lint/golint \
 		github.com/kisielk/errcheck \
 		github.com/fatih/hclfmt \
@@ -38,27 +45,11 @@ RUN export arch_val="$(dpkg --print-architecture)"; \
 
 RUN pip install yapf==0.16.2 flake8==3.3.0 requests==2.19.1
 
-# Install Docker (client only)
-ENV DOCKERVERSION=17.09.1-ce
-RUN export arch_val="$(dpkg --print-architecture)"; \
-    if [ "$arch_val" = "arm64" ]; then \
-        curl -fsSLO https://download.docker.com/linux/static/stable/aarch64/docker-${DOCKERVERSION}.tgz; \
-    elif [ "$arch_val" = "amd64" ]; then \
-        curl -fsSLO https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKERVERSION}.tgz; \
-    elif [ "$arch_val" = "ppc64el" ]; then \
-        curl -fsSLO https://download.docker.com/linux/static/stable/ppc64le/docker-${DOCKERVERSION}.tgz; \
-    else \
-        echo "No Docker client found for architecture $(arch_val)." && \
-        exit 1; \
-    fi; \
-    tar xzvf docker-${DOCKERVERSION}.tgz --strip 1 -C /usr/local/bin docker/docker && \
-    rm docker-${DOCKERVERSION}.tgz;
-
 COPY build.sh /
 ENTRYPOINT ["/build.sh"]
 
 ARG revision
-LABEL maintainer="Weaveworks <help@weave.works>" \
+LABEL maintainer="zhaixiaojuan <zhaixiaojuan@loongson.cn>" \
       org.opencontainers.image.title="backend" \
       org.opencontainers.image.source="https://github.com/weaveworks/scope/tree/master/backend" \
       org.opencontainers.image.revision="${revision}" \

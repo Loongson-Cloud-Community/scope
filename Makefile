@@ -1,8 +1,10 @@
 .PHONY: all cri deps static clean realclean client-lint client-test client-sync backend frontend shell lint ui-upload
 
 # If you can use Docker without being root, you can `make SUDO= <target>`
+IMAGE_VERSION=1.13.0
 SUDO=$(shell docker info >/dev/null 2>&1 || echo "sudo -E")
-DOCKERHUB_USER=weaveworks
+REGISTRY?=cr.loongson.cn
+DOCKERHUB_USER=$(REGISTRY)/weaveworks
 SCOPE_EXE=prog/scope
 SCOPE_EXPORT=scope.tar
 CLOUD_AGENT_EXPORT=cloud-agent.tar
@@ -59,16 +61,16 @@ docker/weave:
 	chmod u+x docker/weave
 
 docker/weaveutil:
-	$(SUDO) docker run --rm  --entrypoint=cat weaveworks/weaveexec:$(WEAVENET_VERSION) /usr/bin/weaveutil > $@
+	$(SUDO) docker run --rm  --entrypoint=cat $(REGISTRY)/weaveworks/weaveexec:$(WEAVENET_VERSION) /usr/bin/weaveutil > $@
 	chmod +x $@
 
 docker/%: %
 	cp $* docker/
 
 %.tar: docker/Dockerfile.%
-	$(SUDO) docker build --build-arg=revision=$(GIT_REVISION) -t $(DOCKERHUB_USER)/$* -f $< docker/
-	$(SUDO) docker tag $(DOCKERHUB_USER)/$* $(DOCKERHUB_USER)/$*:$(IMAGE_TAG)
-	$(SUDO) docker save $(DOCKERHUB_USER)/$*:latest > $@
+	$(SUDO) docker build --build-arg=revision=$(GIT_REVISION) -t $(DOCKERHUB_USER)/$*:$(IMAGE_VERSION) -f $< docker/
+	$(SUDO) docker tag $(DOCKERHUB_USER)/$*:$(IMAGE_VERSION) $(DOCKERHUB_USER)/$*:$(IMAGE_TAG)
+	$(SUDO) docker save $(DOCKERHUB_USER)/$*:$(IMAGE_VERSION) > $@
 
 $(CLOUD_AGENT_EXPORT): docker/Dockerfile.cloud-agent docker/$(SCOPE_EXE) docker/weave docker/weaveutil
 
@@ -94,7 +96,7 @@ $(SCOPE_EXE) $(RUNSVINIT) lint tests shell prog/staticui/staticui.go prog/extern
 		--net=host \
 		-e GOARCH -e GOOS -e CIRCLECI -e CIRCLE_BUILD_NUM -e CIRCLE_NODE_TOTAL \
 		-e CIRCLE_NODE_INDEX -e COVERDIR -e SLOW -e TESTDIRS \
-		$(SCOPE_BACKEND_BUILD_IMAGE) SCOPE_VERSION=$(SCOPE_VERSION) CODECGEN_UID=$(CODECGEN_UID) $@
+		$(SCOPE_BACKEND_BUILD_IMAGE):$(IMAGE_VERSION) SCOPE_VERSION=$(SCOPE_VERSION) CODECGEN_UID=$(CODECGEN_UID) $@
 
 else
 
@@ -145,7 +147,7 @@ $(SCOPE_UI_TOOLCHAIN_UPTODATE): client/yarn.lock $(SCOPE_UI_BUILD_UPTODATE)
 			-v $(shell pwd)/$(SCOPE_UI_TOOLCHAIN):/home/weave/scope/client/node_modules \
 			-w /home/weave/scope/client \
 			-u $(shell id -u ${USER}):$(shell id -g ${USER}) \
-			$(SCOPE_UI_BUILD_IMAGE) yarn install; \
+			$(SCOPE_UI_BUILD_IMAGE):$(IMAGE_VERSION) yarn install; \
 	fi
 	touch $(SCOPE_UI_TOOLCHAIN_UPTODATE)
 
@@ -158,7 +160,7 @@ client/build/index.html: $(shell find client/app -type f) $(SCOPE_UI_TOOLCHAIN_U
 			-v $(shell pwd)/$(SCOPE_UI_TOOLCHAIN):/home/weave/scope/client/node_modules \
 			-w /home/weave/scope/client \
 			-u $(shell id -u ${USER}):$(shell id -g ${USER}) \
-			$(SCOPE_UI_BUILD_IMAGE) yarn run build; \
+			$(SCOPE_UI_BUILD_IMAGE):$(IMAGE_VERSION) yarn run build; \
 	fi
 
 client/build-external/index.html: $(shell find client/app -type f) $(SCOPE_UI_TOOLCHAIN_UPTODATE)
@@ -170,7 +172,7 @@ client/build-external/index.html: $(shell find client/app -type f) $(SCOPE_UI_TO
 			-v $(shell pwd)/$(SCOPE_UI_TOOLCHAIN):/home/weave/scope/client/node_modules \
 			-w /home/weave/scope/client \
 			-u $(shell id -u ${USER}):$(shell id -g ${USER}) \
-			$(SCOPE_UI_BUILD_IMAGE) yarn run build-external; \
+			$(SCOPE_UI_BUILD_IMAGE):$(IMAGE_VERSION) yarn run build-external; \
 	fi
 
 client-test: $(shell find client/app/scripts -type f) $(SCOPE_UI_TOOLCHAIN_UPTODATE)
@@ -180,7 +182,7 @@ client-test: $(shell find client/app/scripts -type f) $(SCOPE_UI_TOOLCHAIN_UPTOD
 		-v $(shell pwd)/$(SCOPE_UI_TOOLCHAIN):/home/weave/scope/client/node_modules \
 		-w /home/weave/scope/client \
 		-u $(id -u ${USER}):$(id -g ${USER}) \
-		$(SCOPE_UI_BUILD_IMAGE) yarn test
+		$(SCOPE_UI_BUILD_IMAGE):$(IMAGE_VERSION) yarn test
 
 client-lint: $(SCOPE_UI_TOOLCHAIN_UPTODATE)
 	$(SUDO) docker run $(RM) $(RUN_FLAGS) \
@@ -189,7 +191,7 @@ client-lint: $(SCOPE_UI_TOOLCHAIN_UPTODATE)
 		-v $(shell pwd)/$(SCOPE_UI_TOOLCHAIN):/home/weave/scope/client/node_modules \
 		-w /home/weave/scope/client \
 		-u $(shell id -u ${USER}):$(shell id -g ${USER}) \
-		$(SCOPE_UI_BUILD_IMAGE) yarn run lint
+		$(SCOPE_UI_BUILD_IMAGE):$(IMAGE_VERSION) yarn run lint
 
 client-start: $(SCOPE_UI_TOOLCHAIN_UPTODATE)
 	$(SUDO) docker run $(RM) $(RUN_FLAGS) --net=host \
@@ -199,7 +201,7 @@ client-start: $(SCOPE_UI_TOOLCHAIN_UPTODATE)
 		-e WEBPACK_SERVER_HOST \
 		-w /home/weave/scope/client \
 		-u $(shell id -u ${USER}):$(shell id -g ${USER}) \
-		$(SCOPE_UI_BUILD_IMAGE) yarn start
+		$(SCOPE_UI_BUILD_IMAGE):$(IMAGE_VERSION) yarn start
 
 client/bundle/weave-scope.tgz: $(shell find client/app -type f) $(SCOPE_UI_TOOLCHAIN_UPTODATE)
 	$(sudo) docker run $(RUN_FLAGS) \
@@ -209,7 +211,7 @@ client/bundle/weave-scope.tgz: $(shell find client/app -type f) $(SCOPE_UI_TOOLC
 		-v $(shell pwd)/tmp:/home/weave/tmp \
 		-w /home/weave/scope/client \
 		-u $(shell id -u ${USER}):$(shell id -g ${USER}) \
-		$(SCOPE_UI_BUILD_IMAGE) yarn run bundle
+		$(SCOPE_UI_BUILD_IMAGE):$(IMAGE_VERSION) yarn run bundle
 
 else
 
@@ -231,13 +233,13 @@ client/build-external/index.html: $(SCOPE_UI_TOOLCHAIN_UPTODATE)
 endif
 
 $(SCOPE_UI_BUILD_UPTODATE): client/Dockerfile client/package.json client/webpack.local.config.js client/webpack.production.config.js client/server.js client/.eslintrc
-	$(SUDO) docker build -t $(SCOPE_UI_BUILD_IMAGE) client
-	$(SUDO) docker tag $(SCOPE_UI_BUILD_IMAGE) $(SCOPE_UI_BUILD_IMAGE):$(IMAGE_TAG)
+	$(SUDO) docker build -t $(SCOPE_UI_BUILD_IMAGE):$(IMAGE_VERSION) client
+	$(SUDO) docker tag $(SCOPE_UI_BUILD_IMAGE):$(IMAGE_VERSION) $(SCOPE_UI_BUILD_IMAGE):$(IMAGE_TAG)
 	touch $@
 
 $(SCOPE_BACKEND_BUILD_UPTODATE): backend/*
-	$(SUDO) docker build -t $(SCOPE_BACKEND_BUILD_IMAGE) backend
-	$(SUDO) docker tag $(SCOPE_BACKEND_BUILD_IMAGE) $(SCOPE_BACKEND_BUILD_IMAGE):$(IMAGE_TAG)
+	$(SUDO) docker build -t $(SCOPE_BACKEND_BUILD_IMAGE):$(IMAGE_VERSION) backend
+	$(SUDO) docker tag $(SCOPE_BACKEND_BUILD_IMAGE):$(IMAGE_VERSION) $(SCOPE_BACKEND_BUILD_IMAGE):$(IMAGE_TAG)
 	touch $@
 
 ui-upload: client/build-external/index.html
@@ -274,10 +276,10 @@ clean-codecgen:
 # Doing this is important for release builds.
 realclean: clean
 	rm -rf $(SCOPE_UI_TOOLCHAIN)
-	$(SUDO) docker rmi -f $(SCOPE_UI_BUILD_IMAGE) $(SCOPE_BACKEND_BUILD_IMAGE) \
+	$(SUDO) docker rmi -f $(SCOPE_UI_BUILD_IMAGE):$(IMAGE_VERSION) $(SCOPE_BACKEND_BUILD_IMAGE):$(IMAGE_VERSION) \
 		$(DOCKERHUB_USER)/scope $(DOCKERHUB_USER)/cloud-agent \
 		$(DOCKERHUB_USER)/scope:$(IMAGE_TAG) $(DOCKERHUB_USER)/cloud-agent:$(IMAGE_TAG) \
-		weaveworks/weaveexec:$(WEAVENET_VERSION) \
+		$(REGISTRY)/weaveworks/weaveexec:$(WEAVENET_VERSION) \
 		ubuntu:yakkety alpine:3.5 node:6.9.0 2>/dev/null || true
 
 # Dependencies are intentionally build without enforcing any tags

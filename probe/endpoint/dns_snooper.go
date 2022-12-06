@@ -1,4 +1,4 @@
-// +build linux,amd64 linux,ppc64le
+// +build linux,amd64 linux,loong64 linux,ppc64le
 
 // Build constraint to use this file for amd64 & ppc64le on Linux
 
