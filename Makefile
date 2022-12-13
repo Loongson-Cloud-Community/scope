@@ -3,7 +3,7 @@
 # If you can use Docker without being root, you can `make SUDO= <target>`
 IMAGE_VERSION=1.13.0
 SUDO=$(shell docker info >/dev/null 2>&1 || echo "sudo -E")
-REGISTRY?=cr.loongson.cn
+REGISTRY?=cr.loongnix.cn
 DOCKERHUB_USER=$(REGISTRY)/weaveworks
 SCOPE_EXE=prog/scope
 SCOPE_EXPORT=scope.tar
@@ -57,7 +57,8 @@ cri: update-cri protoc-gen-gofast
 	@cd $(GOPATH)/src;protoc --proto_path=$(GOPATH)/src --gofast_out=plugins=grpc:. github.com/weaveworks/scope/cri/runtime/api.proto
 
 docker/weave:
-	curl -L https://github.com/weaveworks/weave/releases/download/v$(WEAVENET_VERSION)/weave -o docker/weave
+	#curl -L https://github.com/weaveworks/weave/releases/download/v$(WEAVENET_VERSION)/weave -o docker/weave
+	cp weave docker/weave
 	chmod u+x docker/weave
 
 docker/weaveutil:

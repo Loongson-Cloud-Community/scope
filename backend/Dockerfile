@@ -1,10 +1,6 @@
 FROM cr.loongnix.cn/library/golang:1.15
 ENV SCOPE_SKIP_UI_ASSETS true
 
-RUN wget http://pkg.loongnix.cn/loongnix/pool/main/d/debian-archive-keyring//debian-archive-keyring_2019.1.lnd.2_all.deb && \
-    dpkg -i debian-archive-keyring_2019.1.lnd.2_all.deb && \
-    apt-key add /usr/share/keyrings/debian-archive-buster-loongarch64-stable.gpg
-
 RUN set -eux; \
    export arch_val="$(dpkg --print-architecture)"; \
    apt-get update && \
